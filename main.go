@@ -65,6 +65,10 @@ func postGame(c echo.Context) error {
 	return c.JSON(http.StatusOK, &g)
 }
 
+func getCards(c echo.Context) error {
+	return c.JSON(http.StatusOK, AllCards)
+}
+
 func joinWebsocket(c echo.Context) error {
 	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 	fmt.Println("New ws conn")
@@ -130,6 +134,7 @@ func main() {
 
 	e.GET("/games/:code", getGame)
 	e.POST("/games", postGame)
+	e.GET("/cards", getCards)
 
 	e.GET("/ws", joinWebsocket)
 

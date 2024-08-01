@@ -1,5 +1,7 @@
 package main
 
+import "encoding/json"
+
 type Suit int
 
 const (
@@ -24,6 +26,10 @@ func (s Suit) String() string {
 	}
 }
 
+func (s Suit) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+
 type Archetype int
 
 const (
@@ -42,22 +48,26 @@ func (a Archetype) String() string {
 	case None:
 		return "none"
 	case Food:
-		return "none"
+		return "food"
 	case Resource:
-		return "none"
+		return "resource"
 	case Animal:
-		return "none"
+		return "animal"
 	case Leisure:
-		return "none"
+		return "leisure"
 	case Governance:
-		return "none"
+		return "governance"
 	case Market:
-		return "none"
+		return "market"
 	case Crafting:
-		return "none"
+		return "crafting"
 	default:
 		return "error"
 	}
+}
+
+func (a Archetype) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.String())
 }
 
 type Effect int
@@ -93,27 +103,19 @@ func (e Effect) String() string {
 	}
 }
 
-type Card struct {
-	Name         string
-	Description  string
-	PurchaseCost int
-	DieTriggers  []int
-	Suit
-	Archetype
-	Effect
-	EffectSource Archetype
+func (e Effect) MarshalJSON() ([]byte, error) {
+	return json.Marshal(e.String())
 }
 
-type CardJson struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-
-	PurchaseCost int    `json:"purchaseCost"`
-	DieTriggers  []int  `json:"dieTriggers"`
-	Suit         string `json:"suit"`
-	Archetype    string `json:"archetype"`
-	Effect       string `json:"effect"`
-	EffectSource string `json:"effectSource"`
+type Card struct {
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	PurchaseCost int       `json:"purchaseCost"`
+	DieTriggers  []int     `json:"dieTriggers"`
+	Suit         Suit      `json:"suit"`
+	Archetype    Archetype `json:"archetype"`
+	Effect       Effect    `json:"effect"`
+	EffectSource Archetype `json:"effectSource"`
 }
 
 var (
@@ -167,5 +169,7 @@ var (
 			Effect:       Take,
 			EffectSource: None,
 		},
+
+		//TODO: To be continued...
 	}
 )
