@@ -1,3 +1,8 @@
+:root {
+	--color-text: #fff;
+	--color-background: #000;
+}
+
 body {
   min-height: 100vh;
   color: var(--color-text);

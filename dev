@@ -1,2 +1,2 @@
 #!/bin/sh
-air --build.exclude_dir web
+pnpm -C web run dev & air --build.exclude_dir web ;

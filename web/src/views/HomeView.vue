@@ -11,12 +11,15 @@ const store = useStore();
 const code = ref("");
 const loading = ref(false);
 
+const enter = (g: Game) => {
+  store.game = g;
+  router.push("/game");
+};
+
 const onJoin = () => {
   get<Game>(`/api/games/${code.value}`)
     .then((g) => {
-      console.log("Game:", g);
-      store.game = g;
-      router.push("/game");
+      enter(g);
     })
     .catch((s) => {
       console.log("no game", s);
@@ -27,13 +30,13 @@ const onJoin = () => {
 };
 
 const onHost = () => {
-post<Game>(`/api/games`).then((g) => {
-      store.game = g;
-      router.push("/game");
-}).catch((s) => {
+  post<Game>(`/api/games`)
+    .then((g) => {
+      enter(g);
+    })
+    .catch((s) => {
       console.log("no game", s);
-});
-
+    });
 };
 </script>
 
