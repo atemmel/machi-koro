@@ -1,21 +1,24 @@
 <script setup lang="ts">
 import { useStore } from "@/store";
 import { ref, computed, onMounted } from "vue";
-import { join, start } from "@/sockets";
+import { askForRoll, buyMessage, join, start } from "@/sockets";
 import { useRouter } from "vue-router";
 import Board from "@/components/Board.vue";
 import Die from "@/components/Die.vue";
-import type { Card } from "@/models";
+import { watch } from "vue";
 
 const router = useRouter();
 const store = useStore();
 const game = computed(() => store.game);
 const joined = ref(false);
 const name = ref("");
+const enableInput = ref(true);
 
 onMounted(() => {
   if (store.game == undefined) {
     router.replace("/");
+  } else {
+    store.getAvailableCards();
   }
 });
 
@@ -32,31 +35,30 @@ const onStart = () => {
   start();
 };
 
-const cards: Card[] = [
-  {
-    name: "Wheat Field",
-    description: "Get 1 coin from the bank. (anyone's turn)",
-    purchaseCost: 1,
-    dieTriggers: [1],
-    suit: "blue",
-    archetype: "food",
-    effect: "gain (any)",
-    effectSource: "",
+const roll = (thisMany: number) => {
+  enableInput.value = false;
+  askForRoll(thisMany);
+};
+
+const cardClick = (idx: number) => {
+  enableInput.value = false;
+  buyMessage(idx);
+};
+
+watch(
+  () => store.phase,
+  () => {
+    if (store.activePlayer != store.player) {
+      return;
+    }
+
+    enableInput.value = true;
   },
-  {
-    name: "Ranch",
-    description: "Get 1 coin from the bank. (anyone's turn)",
-    purchaseCost: 1,
-    dieTriggers: [1],
-    suit: "blue",
-    archetype: "food",
-    effect: "gain (any)",
-    effectSource: "",
-  },
-];
+);
 </script>
 <template>
   <div v-if="store.inLobby">
+    <div>Game code {{ store.game?.code }}</div>
     <form @submit.prevent="onSubmit" v-if="!joined">
       <input v-model="name" />
       <input type="submit" />
@@ -66,11 +68,28 @@ const cards: Card[] = [
       <li v-for="(p, idx) of game?.players" :key="idx">{{ p }}</li>
     </ul>
   </div>
-  <div v-else="store.inProgress">
+  <div v-else-if="store.inProgress">
     <h1>game is in progress, current player {{ store.activePlayer }}</h1>
-    <template v-if="store.isMyTurn">
-      <die v-if="store.isRollPhase" :eyes="[]" />
-      <board :cards="cards" v-if="store.isBuyPhase" />
-    </template>
+    <div v-if="store.isRollPhase">
+      <div>
+        <die :eyes="store.eyes" />
+      </div>
+      <div v-if="store.isMyTurn">
+        <button @click="roll(1)" v-if="enableInput">Roll 1 dice</button>
+      </div>
+    </div>
+	<div v-if="store.isBuyPhase">
+		<div>
+			Available cards
+		</div>
+    <board
+      :cards="store.availableCards"
+      @cardClick="cardClick"
+    />
+	</div>
+    <div>
+      <div>Your cards</div>
+      <board :cards="store.boughtCards" />
+    </div>
   </div>
 </template>

@@ -1,3 +1,4 @@
+import type { Eyes } from "@/models";
 import type { ClientRequest, ServerResponse } from "@/models";
 import {
   JoinOperation,
@@ -11,8 +12,14 @@ import {
   StartAnnouncement,
   OwnerAssign,
   TurnChangeAnnouncement,
+  RollRequest,
+  RollAnnouncement,
+  BuyAnnouncement,
+  BuyRequest,
 } from "@/models";
 import { useStore } from "@/store";
+import { toRaw } from "vue";
+import { someOtherDice } from "./utils";
 
 let socket: WebSocket;
 
@@ -61,8 +68,38 @@ export const join = (code: string, player: string): Promise<void> => {
           break;
         }
         case TurnChangeAnnouncement: {
+          console.log("Active player is now", msg.player);
           store.activePlayer = msg.player;
+		  setTimeout(() => {
           store.phase = "roll";
+		  });
+          break;
+        }
+        case RollAnnouncement: {
+          if (store.eyes[0] == msg.operands[0]) {
+            store.eyes[0] = someOtherDice(store.eyes[0]);
+          }
+          setTimeout(() => {
+            store.eyes = msg.operands as Eyes[];
+            setTimeout(() => {
+              store.phase = "buy";
+            }, 2800);
+          }, 200);
+          break;
+        }
+        case BuyAnnouncement: {
+          const cardIdx = msg.operands[0];
+          store.availableCards[cardIdx].count -= 1;
+          console.log(msg.player, store.player);
+          if (msg.player == store.player) {
+            if (store.boughtCards[cardIdx] == undefined) {
+              store.boughtCards[cardIdx] = JSON.parse(
+                JSON.stringify(toRaw(store.availableCards[cardIdx])),
+              );
+              store.boughtCards[cardIdx].count = 0;
+            }
+            store.boughtCards[cardIdx].count += 1;
+          }
           break;
         }
       }
@@ -93,6 +130,20 @@ export const start = () => {
   socket.send(JSON.stringify(startMessage));
 };
 
+export const askForRoll = (n: number) => {
+  const store = useStore();
+  const code = store.game?.code || "";
+  const player = store.player;
+
+  const rollMessage: ClientRequest = {
+    player,
+    code,
+    requestOperation: RollRequest,
+    operand: n,
+  };
+  socket.send(JSON.stringify(rollMessage));
+};
+
 const joinMessage = (code: string, player: string): string => {
   const openMessage: ClientRequest = {
     code,
@@ -101,6 +152,20 @@ const joinMessage = (code: string, player: string): string => {
     requestOperation: JoinOperation,
   };
   return JSON.stringify(openMessage);
+};
+
+export const buyMessage = (idx: number) => {
+  const store = useStore();
+  const code = store.game?.code || "";
+  const player = store.player;
+
+  const rollMessage: ClientRequest = {
+    player,
+    code,
+    requestOperation: BuyRequest,
+    operand: idx,
+  };
+  socket.send(JSON.stringify(rollMessage));
 };
 
 const pongMessage = (code: string, player: string): string => {

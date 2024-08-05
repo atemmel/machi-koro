@@ -1,9 +1,10 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"sync"
-	"unsafe"
 
 	"github.com/gorilla/websocket"
 )
@@ -16,6 +17,8 @@ const (
 	PongResponse
 	LeaveRequest
 	StartRequest
+	RollRequest
+	BuyRequest
 )
 
 const (
@@ -25,6 +28,8 @@ const (
 	StartAnnouncement
 	OwnerAssign
 	TurnChangeAnnouncement
+	RollAnnouncement
+	BuyAnnouncement
 )
 
 type Operand int
@@ -42,22 +47,25 @@ type ClientRequest struct {
 
 type ServerResponse struct {
 	Code         `json:"code"`
-	Operand      `json:"operand"`
+	Operands     []Operand `json:"operands"`
 	ResponseCode `json:"responseCode"`
 	Player       string `json:"player"`
 }
 
 type Client struct {
-	Name string `json:"name"`
+	Name        string       `json:"name"`
+	BoughtCards map[int]Card `json:"cards"`
 }
 
 type Game struct {
-	Code         Code                       // Code to game
-	Owner        *websocket.Conn            // Owner of lobby
-	ActivePlayer *websocket.Conn            // Player whose turn it is
-	State        GameState                  // In progess, Lobby
-	clients      map[*websocket.Conn]Client // All clients
-	order        []*websocket.Conn
+	Code           Code                       // Code to game
+	Owner          *websocket.Conn            // Owner of lobby
+	ActivePlayer   *websocket.Conn            // Player whose turn it is
+	State          GameState                  // In progess, Lobby
+	Phase          string                     // Roll dice, buy cards
+	clients        map[*websocket.Conn]Client // All clients
+	order          []*websocket.Conn
+	availableCards []Card
 }
 
 func (g *Game) Response() *GameResponse {
@@ -70,6 +78,7 @@ func (g *Game) Response() *GameResponse {
 	return &GameResponse{
 		Code:    g.Code,
 		State:   g.State,
+		Phase:   g.Phase,
 		Players: players,
 	}
 }
@@ -80,6 +89,9 @@ var (
 )
 
 func AddPlayer(ws *websocket.Conn) (Code, string, error) {
+	if ws == nil {
+		panic("Ws was nil")
+	}
 	msg, err := readMessage(ws)
 	if err != nil {
 		return "", "", err
@@ -99,20 +111,21 @@ func AddPlayer(ws *websocket.Conn) (Code, string, error) {
 			lookup.Owner = ws
 			sendMessage(ws, &ServerResponse{
 				Code:         msg.Code,
-				Operand:      Blank,
+				Operands:     []Operand{Blank},
 				ResponseCode: OwnerAssign,
 				Player:       msg.Player,
 			})
 		}
 
 		lookup.clients[ws] = Client{
-			Name: msg.Player,
+			Name:        msg.Player,
+			BoughtCards: map[int]Card{},
 		}
 		games[msg.Code] = lookup
 
 		response := &ServerResponse{
 			Code:         msg.Code,
-			Operand:      Blank,
+			Operands:     []Operand{Blank},
 			ResponseCode: JoinAnnouncement,
 			Player:       msg.Player,
 		}
@@ -147,7 +160,7 @@ func DropPlayer(ws *websocket.Conn, code Code) {
 					lookup.Owner = c
 					sendMessage(ws, &ServerResponse{
 						Code:         code,
-						Operand:      Blank,
+						Operands:     []Operand{Blank},
 						ResponseCode: OwnerAssign,
 						Player:       lookup.clients[c].Name,
 					})
@@ -162,10 +175,34 @@ func DropPlayer(ws *websocket.Conn, code Code) {
 
 	publishMessage(code, &ServerResponse{
 		Code:         code,
-		Operand:      Blank,
+		Operands:     []Operand{Blank},
 		ResponseCode: LeaveAnnouncement,
 		Player:       player.Name,
 	})
+}
+
+func NewGame() GameResponse {
+	g := Game{
+		Code:           genRoomCode(),
+		State:          Lobby,
+		clients:        map[*websocket.Conn]Client{},
+		availableCards: CopyOfAllCards(),
+	}
+	gamesMutex.Lock()
+	defer gamesMutex.Unlock()
+	games[g.Code] = g
+	return *g.Response()
+}
+
+func LookupGame(code Code) *GameResponse {
+	if !validateRoomCode(code) {
+		return nil
+	}
+	lookup, ok := games[code]
+	if ok {
+		return lookup.Response()
+	}
+	return nil
 }
 
 func StartGame(ws *websocket.Conn, msg *ClientRequest) {
@@ -175,7 +212,6 @@ func StartGame(ws *websocket.Conn, msg *ClientRequest) {
 	lookup := games[msg.Code]
 
 	if ws != lookup.Owner {
-		fmt.Println("was not owner", unsafe.Pointer(ws), lookup.Owner)
 		// only owner can start
 		return
 	}
@@ -187,7 +223,7 @@ func StartGame(ws *websocket.Conn, msg *ClientRequest) {
 	}
 
 	// make an order of turns
-	lookup.order = make([]*websocket.Conn, len(lookup.clients))
+	lookup.order = make([]*websocket.Conn, 0, len(lookup.clients))
 	for c := range lookup.clients {
 		lookup.order = append(lookup.order, c)
 	}
@@ -199,7 +235,7 @@ func StartGame(ws *websocket.Conn, msg *ClientRequest) {
 		Player:       msg.Player,
 		Code:         msg.Code,
 		ResponseCode: StartAnnouncement,
-		Operand:      Blank,
+		Operands:     []Operand{Blank},
 	})
 
 	activePlayer := lookup.clients[lookup.ActivePlayer]
@@ -208,7 +244,89 @@ func StartGame(ws *websocket.Conn, msg *ClientRequest) {
 		Player:       activePlayer.Name,
 		Code:         msg.Code,
 		ResponseCode: TurnChangeAnnouncement,
-		Operand:      Blank,
+		Operands:     []Operand{Blank},
+	})
+
+}
+
+func RollDice(ws *websocket.Conn, msg *ClientRequest) {
+
+	operands := make([]Operand, msg.Operand)
+
+	for i := range operands {
+		nBig, err := rand.Int(rand.Reader, big.NewInt(6+1))
+		if err != nil {
+			panic(err)
+		}
+		operands[i] = Operand(nBig.Int64())
+	}
+
+	gamesMutex.Lock()
+	defer gamesMutex.Unlock()
+	publishMessage(msg.Code, &ServerResponse{
+		Code:         msg.Code,
+		Player:       msg.Player,
+		ResponseCode: RollAnnouncement,
+		Operands:     operands,
+	})
+}
+
+func BuyCard(ws *websocket.Conn, msg *ClientRequest) {
+	gamesMutex.Lock()
+	defer gamesMutex.Unlock()
+
+	g, ok := games[msg.Code]
+	if !ok {
+		return
+	}
+
+	c, ok := g.clients[ws]
+	if !ok {
+		return
+	}
+
+	cardIdx := int(msg.Operand)
+	card := &g.availableCards[cardIdx]
+	if card.Count <= 0 {
+		return
+	}
+	card.Count -= 1
+
+	if existingCard, ok := c.BoughtCards[cardIdx]; ok {
+		existingCard.Count++
+		c.BoughtCards[cardIdx] = existingCard
+	} else {
+		newCard := AllCards[cardIdx]
+		newCard.Count = 1
+		c.BoughtCards[cardIdx] = newCard
+	}
+
+	publishMessage(msg.Code, &ServerResponse{
+		Player:       msg.Player,
+		Code:         msg.Code,
+		Operands:     []Operand{Operand(cardIdx)},
+		ResponseCode: BuyAnnouncement,
+	})
+
+	nextTurn(&g)
+
+	g.Phase = "roll"
+	g.clients[ws] = c
+	games[msg.Code] = g
+}
+
+func nextTurn(g *Game) {
+	next := nextPlayer(g.order, g.ActivePlayer)
+	g.ActivePlayer = next
+	client := g.clients[next]
+	fmt.Println(next)
+	fmt.Println(client)
+
+	publishMessage(g.Code, &ServerResponse{
+		Player:       client.Name,
+		Code:         g.Code,
+		Operands:     []Operand{Blank},
+		ResponseCode: TurnChangeAnnouncement,
 	})
 }
 
@@ -263,4 +381,19 @@ func remove(slice []*websocket.Conn, item *websocket.Conn) []*websocket.Conn {
 		return slice
 	}
 	return append(slice[:idx], slice[idx+1:]...)
+}
+
+func nextPlayer(order []*websocket.Conn, active *websocket.Conn) *websocket.Conn {
+	fmt.Println("order:", order)
+	for i, c := range order {
+		if c == active {
+			if i+1 == len(order) {
+				return order[0]
+			}
+			return order[i+1]
+
+		}
+
+	}
+	return nil
 }

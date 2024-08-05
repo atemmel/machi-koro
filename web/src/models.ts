@@ -13,7 +13,7 @@ export type ClientRequest = {
 
 export type ServerResponse = {
   code: string;
-  operand: number;
+  operands: number[];
   responseCode: number;
   player: string;
 };
@@ -27,6 +27,8 @@ export const JoinOperation = 0;
 export const PongResponse = 1;
 export const LeaveRequest = 2;
 export const StartRequest = 3;
+export const RollRequest = 4;
+export const BuyRequest = 5;
 
 // Server codes
 export const JoinAnnouncement = 0;
@@ -35,6 +37,8 @@ export const LeaveAnnouncement = 2;
 export const StartAnnouncement = 3;
 export const OwnerAssign = 4;
 export const TurnChangeAnnouncement = 5;
+export const RollAnnouncement = 6;
+export const BuyAnnouncement = 7;
 
 // Operands
 export const BlankOperand = 0;
@@ -70,6 +74,7 @@ export type Card = {
   archetype: Archetype;
   effect: Effect;
   effectSource: "" | Archetype;
+  count: number;
 };
 
-export type Eyes = 1 | 2 | 3 | 4 | 5| 6;
+export type Eyes = 1 | 2 | 3 | 4 | 5 | 6;

@@ -2,8 +2,16 @@
 import type { Card } from "@/models";
 import CardVue from "@/components/Card.vue";
 defineProps<{
-  cards: Card[];
+  cards: Record<number, Card>;
 }>();
+
+const emit = defineEmits<{
+  (e: "cardClick", id: number): void;
+}>();
+
+const click = (idx: number) => {
+  emit("cardClick", idx);
+};
 </script>
 <template>
   <div class="grid-container">
@@ -12,6 +20,7 @@ defineProps<{
       class="card"
       v-for="(card, idx) in cards"
       :key="idx"
+      @click="click(idx)"
     />
   </div>
 </template>

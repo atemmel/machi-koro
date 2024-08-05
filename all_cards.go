@@ -116,6 +116,7 @@ type Card struct {
 	Archetype    Archetype `json:"archetype"`
 	Effect       Effect    `json:"effect"`
 	EffectSource Archetype `json:"effectSource"`
+	Count        int       `json:"count"`
 }
 
 var (
@@ -131,6 +132,7 @@ var (
 			Archetype:    Food,
 			Effect:       GainAny,
 			EffectSource: None,
+			Count:        4,
 		},
 		{
 			Name:         "Ranch",
@@ -143,6 +145,7 @@ var (
 			Archetype:    Animal,
 			Effect:       GainAny,
 			EffectSource: None,
+			Count:        4,
 		},
 		{
 			Name:         "Bakery",
@@ -156,6 +159,7 @@ var (
 			Archetype:    Market,
 			Effect:       Gain,
 			EffectSource: None,
+			Count:        4,
 		},
 		{
 			Name:         "Café",
@@ -168,8 +172,15 @@ var (
 			Archetype:    Leisure,
 			Effect:       Take,
 			EffectSource: None,
+			Count:        4,
 		},
 
 		//TODO: To be continued...
 	}
 )
+
+func CopyOfAllCards() []Card {
+	cards := make([]Card, len(AllCards))
+	copy(cards, AllCards)
+	return cards
+}

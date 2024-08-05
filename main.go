@@ -21,6 +21,7 @@ const (
 type GameResponse struct {
 	Code    Code      `json:"code"`
 	State   GameState `json:"state"`
+	Phase   string    `json:"phase"`
 	Players []Client  `json:"players"`
 }
 
@@ -33,36 +34,16 @@ var (
 	}
 )
 
-func queryGame(code Code) *GameResponse {
-	//TODO: validate code
-	lookup, ok := games[code]
-	if ok {
-		return lookup.Response()
-	}
-	return nil
-}
-
-func makeGame() GameResponse {
-	g := Game{
-		Code:    "a", //TODO should be random
-		State:   Lobby,
-		clients: map[*websocket.Conn]Client{},
-	}
-	games[g.Code] = g
-	return *g.Response()
-}
-
 func getGame(c echo.Context) error {
 	code := Code(c.Param("code"))
-	if g := queryGame(code); g != nil {
+	if g := LookupGame(code); g != nil {
 		return c.JSON(http.StatusOK, g)
 	}
 	return c.NoContent(http.StatusNotFound)
 }
 
 func postGame(c echo.Context) error {
-	g := makeGame()
-	return c.JSON(http.StatusOK, &g)
+	return c.JSON(http.StatusOK, NewGame())
 }
 
 func getCards(c echo.Context) error {
@@ -105,6 +86,14 @@ func joinWebsocket(c echo.Context) error {
 			{
 				StartGame(ws, msg)
 			}
+		case RollRequest:
+			{
+				RollDice(ws, msg)
+			}
+		case BuyRequest:
+			{
+				BuyCard(ws, msg)
+			}
 		}
 	}
 }
@@ -112,7 +101,7 @@ func joinWebsocket(c echo.Context) error {
 func ping(ws *websocket.Conn, code Code, player string) {
 	msg := &ServerResponse{
 		Code:         code,
-		Operand:      Blank,
+		Operands:     []Operand{Blank},
 		ResponseCode: PingRequest,
 		Player:       player,
 	}
