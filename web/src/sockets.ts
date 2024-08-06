@@ -70,9 +70,9 @@ export const join = (code: string, player: string): Promise<void> => {
         case TurnChangeAnnouncement: {
           console.log("Active player is now", msg.player);
           store.activePlayer = msg.player;
-		  setTimeout(() => {
-          store.phase = "roll";
-		  });
+          setTimeout(() => {
+            store.phase = "roll";
+          });
           break;
         }
         case RollAnnouncement: {

@@ -8,5 +8,5 @@ export const someOtherDice = (eyes: Eyes): Eyes => {
   if (eyes == 1) {
     return 6;
   }
-  return eyes - 1 as Eyes;
+  return (eyes - 1) as Eyes;
 };

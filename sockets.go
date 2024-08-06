@@ -319,8 +319,6 @@ func nextTurn(g *Game) {
 	next := nextPlayer(g.order, g.ActivePlayer)
 	g.ActivePlayer = next
 	client := g.clients[next]
-	fmt.Println(next)
-	fmt.Println(client)
 
 	publishMessage(g.Code, &ServerResponse{
 		Player:       client.Name,
@@ -384,7 +382,6 @@ func remove(slice []*websocket.Conn, item *websocket.Conn) []*websocket.Conn {
 }
 
 func nextPlayer(order []*websocket.Conn, active *websocket.Conn) *websocket.Conn {
-	fmt.Println("order:", order)
 	for i, c := range order {
 		if c == active {
 			if i+1 == len(order) {

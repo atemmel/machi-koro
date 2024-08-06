@@ -78,15 +78,10 @@ watch(
         <button @click="roll(1)" v-if="enableInput">Roll 1 dice</button>
       </div>
     </div>
-	<div v-if="store.isBuyPhase">
-		<div>
-			Available cards
-		</div>
-    <board
-      :cards="store.availableCards"
-      @cardClick="cardClick"
-    />
-	</div>
+    <div v-if="store.isBuyPhase">
+      <div>Available cards</div>
+      <board :cards="store.availableCards" @cardClick="cardClick" />
+    </div>
     <div>
       <div>Your cards</div>
       <board :cards="store.boughtCards" />
